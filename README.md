@@ -22,6 +22,16 @@ If multiple records have the same label but different abstract, they should be t
 This repo provides two execution modes to get the required results. <br>
 - Python execution with pandas and swifter
 - Pyspark execution with pyspark
+
+##### Test the code
+[Optional] - Build and install the test package
+```bash
+bash build_package.sh
+
+# create a virtual environment and install the package
+pip install test_pkg/preprocessing-0.0.0-py3-none-any.whl
+```
+
 ```bash
 bash bash_run.sh python # process with python
 # or

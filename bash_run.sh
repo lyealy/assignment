@@ -4,7 +4,15 @@ set -e
 
 mode=$1
 
-export PYTHONPATH=$(pwd)
+# PYTHONPATH is not required if you have already installed the preprocessing package
+get_package=$(pip list | grep preprocessing -Eo || true)
+
+if [ -z "$get_package" ]; then
+  echo "Package is not installed, use source code"
+  export PYTHONPATH=$(pwd)
+else
+  echo "Package is already installed"
+fi
 
 pytest tests
 
