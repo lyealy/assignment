@@ -13,13 +13,19 @@ If multiple records have the same label but different abstract, they should be t
 # Project Structure
 - data - contains the raw data (not included in this repo) <br>
 - image - contains supporting images <br>
-- output_artefacts - contains the output data and reusable artefacts <br>
+- execution - main scripts, python or pyspark
+- output_artefacts_{pyspark|python}_run - contains the output data and reusable artefacts <br>
 - preprocessing - contains the project main codes <br>
 - tests - contains unit tests <br>
 
 ### Run Processing
+This repo provides two execution modes to get the required results. <br>
+- Python execution with pandas and swifter
+- Pyspark execution with pyspark
 ```bash
-bash bash_run.sh
+bash bash_run.sh python # process with python
+# or
+bash bash_run.sh pyspark # process with pyspark
 ```
 
 ### Processing Logic

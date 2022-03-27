@@ -38,7 +38,7 @@ class WordCount:
         Parameters
         ----------
         text:
-            A string contains one more multiple words.
+            A string contains one or multiple words.
         Returns
         -------
             Word counts (length) of the text object.

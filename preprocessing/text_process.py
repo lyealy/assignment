@@ -53,7 +53,7 @@ class TextPreprocessing:
         Parameters
         ----------
         text:
-            A string contains one more multiple words.
+            A string contains one or multiple words.
         enable_lemmatisation:
             If true, apply lemmatisation before word counting.
             Lemmatisation converts word to its base form:

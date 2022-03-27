@@ -15,7 +15,7 @@ from preprocessing.params import (
     MIN_LETTERS,
 )
 
-formatter = '%(name)s - %(levelname)s :: %(message)s'
+formatter = '%(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO,
                     format=formatter)
 logger = logging.getLogger(__name__)
@@ -35,9 +35,11 @@ def run_etl(input_fpath: str,
         Output path where to store output artefacts.
     """
 
+    # Step 1 - Load raw data
     df = pd.read_json(input_fpath, orient='records')
     logger.info(f'Load raw data from {input_fpath}. Raw dataset contains {len(df)} records.')
 
+    # Step 2 - Extract text from nested data structure and basic preprocessing
     logger.info('Extract text from raw data with preprocessing...')
     logger.info(f'Enable lemmatisation: {ENABLE_LEMMATISATION}')
     text_preprocessor = TextPreprocessing()
@@ -46,10 +48,12 @@ def run_etl(input_fpath: str,
                           enable_lemmatisation=ENABLE_LEMMATISATION,
                           axis=1)
 
+    # Step 3 - Combine duplicated petitions
     logger.info('Combine records with same text information...')
     df = df.groupby(TEXT_COLUMNS).agg('sum').reset_index()
     logger.info(f'New dataset contains {len(df)} records')
 
+    # Step 4 - Get abstract and label lengths
     df = df.swifter.apply(WordCount.get_word_counts, columns=TEXT_COLUMNS, axis=1)
     df = df.sort_values(by=ORDER_KEY, ascending=False)
     df = df.reset_index(drop=True)
@@ -60,6 +64,7 @@ def run_etl(input_fpath: str,
     df[selected_columns].to_csv(output_fpath)
     logger.info(f'Save output1 to {output_fpath}')
 
+    # Step 5 - Build lookup table
     logger.info('Building lookup table...')
     word_frequency = WordFrequency()
     _ = df.apply(word_frequency.get_word_frequency,
@@ -68,6 +73,7 @@ def run_etl(input_fpath: str,
     logger.info('Saving word frequency lookup table')
     word_frequency.save_table(fpath=os.path.join(artefacts_path, 'table.pkl'))
 
+    # Step 6 - Get top_k common words
     logger.info(f'Get top {TOP_K} common words.')
     logger.info(f'Ignore stopping words: {IGNORE_STOPPING_WORDS}')
     target_words = word_frequency.get_top_k(top_k=TOP_K,
