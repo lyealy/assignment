@@ -1,8 +1,10 @@
 import os
 import argparse
 import logging
+import json
 from pyspark.sql import SparkSession, Row
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType
 from pyspark.sql import Window, DataFrame as sparkDF
 from preprocessing.text_process import TextPreprocessing
 from preprocessing.word_process import WordCount, WordFrequency
@@ -14,6 +16,7 @@ from preprocessing.params import (
     IGNORE_STOPPING_WORDS,
     TOP_K,
     MIN_LETTERS,
+    ELE_LOWER_TRANS_OUTPUT_SCHEMA_PATH
 )
 from typing import Iterator, List
 
@@ -23,6 +26,22 @@ logging.basicConfig(level=logging.INFO,
                     format=formatter)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def load_schema(schema_path: str) -> StructType:
+    """
+    Load data schema.
+    Parameters
+    ----------
+    schema_path:
+        The path where to load the schema
+    Returns
+    -------
+        Data schema (StructType)
+    """
+    with open(schema_path) as f:
+        schema = StructType.fromJson(json.load(f))
+    return schema
 
 
 def element_lower_transform_spark(partition: Iterator) -> Row:
@@ -107,7 +126,10 @@ def run_etl(input_fpath: str, artefacts_path: str):
     # Step 2 - Extract text from nested data structure and basic preprocessing
     logger.info('Extract text from raw data with preprocessing...')
     logger.info(f'Enable lemmatisation: {ENABLE_LEMMATISATION}')
-    spark_df = spark_df.rdd.mapPartitions(lambda x: element_lower_transform_spark(x)).toDF()
+
+    # Load schema
+    schema = load_schema(ELE_LOWER_TRANS_OUTPUT_SCHEMA_PATH)
+    spark_df = spark_df.rdd.mapPartitions(lambda x: element_lower_transform_spark(x)).toDF(schema)
 
     # Step 3 - Combine duplicated petitions
     logger.info('Combine records with same text information...')
@@ -115,7 +137,10 @@ def run_etl(input_fpath: str, artefacts_path: str):
     logger.info(f'New dataset contains {spark_df.count()} records')
 
     # Step 4 - Get abstract and label lengths
-    spark_df = spark_df.rdd.mapPartitions(lambda x: element_count_transform_spark(x)).toDF()
+    # Update schema
+    for column in TEXT_COLUMNS:
+        schema.add(column + '_length', data_type='string')
+    spark_df = spark_df.rdd.mapPartitions(lambda x: element_count_transform_spark(x)).toDF(schema)
     spark_df = spark_df.orderBy(F.col(ORDER_KEY).desc())
     spark_df = spark_df.withColumn(PRIMARY_KEY, F.row_number().over(
         Window.orderBy(F.monotonically_increasing_id()))-1).cache()
@@ -139,7 +164,14 @@ def run_etl(input_fpath: str, artefacts_path: str):
     logger.info(f'Get top {TOP_K} common words.')
     logger.info(f'Ignore stopping words: {IGNORE_STOPPING_WORDS}')
     target_words = word_frequency.get_top_k(TOP_K, MIN_LETTERS, ignore_stopping_words=IGNORE_STOPPING_WORDS)
-    spark_df = spark_df.rdd.mapPartitions(lambda x: element_target_count_transform_spark(x, target_words)).toDF()
+
+    # Generate output schema based on target_words
+    schema = StructType()
+    for word in target_words:
+        schema.add(word, data_type='long')
+    schema.add(PRIMARY_KEY, data_type='long')
+
+    spark_df = spark_df.rdd.mapPartitions(lambda x: element_target_count_transform_spark(x, target_words)).toDF(schema)
     output_fpath = os.path.join(artefacts_path, 'output2')
     spark_df.select([PRIMARY_KEY] + target_words).write.csv(output_fpath, header=True, mode='overwrite')
     logger.info(f'Save output2 to {output_fpath}')
